@@ -47,13 +47,27 @@ defmodule Chatroom.Handler do
     {:noreply, state}
   end
 
-  def handle_info({:tcp_closed, _}, %{peername: peername} = state) do
+  def handle_info(
+        {:tcp_closed, _},
+        %{socket: socket, peername: peername, online_peers: online_peers} = state
+      ) do
+    Agent.update(online_peers, fn ps ->
+      MapSet.delete(ps, socket)
+    end)
+
     Logger.info("Peer #{peername} disconnected")
 
     {:stop, :normal, state}
   end
 
-  def handle_info({:tcp_error, _, reason}, %{peername: peername} = state) do
+  def handle_info(
+        {:tcp_error, _, reason},
+        %{socket: socket, peername: peername, online_peers: online_peers} = state
+      ) do
+    Agent.update(online_peers, fn ps ->
+      MapSet.delete(ps, socket)
+    end)
+
     Logger.info("Error with peer #{peername}: #{inspect(reason)}")
 
     {:stop, :normal, state}
