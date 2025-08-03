@@ -1,21 +1,17 @@
 # Chatroom
 
-**TODO: Add description**
+A server that handles a list of clients and let them communicate.
 
-## Installation
+## Usage
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `chatroom` to your list of dependencies in `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:chatroom, "~> 0.1.0"}
-  ]
-end
+```sh
+mix run --no-halt
 ```
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/chatroom>.
+open other terminals and run
 
+```sh
+telnet 127.0.0.1 5555
+```
+
+then type something & enter in telnet.
