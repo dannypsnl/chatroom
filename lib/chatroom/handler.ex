@@ -8,6 +8,7 @@ defmodule Chatroom.Handler do
   """
   def start_link(ref, socket, transport, %{online_peers: online_peers} = _opts) do
     pid = :proc_lib.spawn_link(__MODULE__, :init, [ref, socket, transport, online_peers])
+    Agent.update(online_peers, fn ps -> MapSet.put(ps, pid) end)
     {:ok, pid}
   end
 
@@ -19,8 +20,6 @@ defmodule Chatroom.Handler do
     :ok = :ranch.accept_ack(ref)
     :ok = transport.setopts(socket, [{:active, true}])
 
-    Agent.update(online_peers, fn ps -> MapSet.put(ps, socket) end)
-
     :gen_server.enter_loop(__MODULE__, [], %{
       socket: socket,
       transport: transport,
@@ -29,9 +28,22 @@ defmodule Chatroom.Handler do
     })
   end
 
+  def push_message(pid, message) do
+    GenServer.cast(pid, {:push_message, message})
+  end
+
+  def handle_cast(
+        {:push_message, message},
+        %{socket: socket, transport: transport} = state
+      ) do
+    transport.send(socket, message)
+
+    {:noreply, state}
+  end
+
   def handle_info(
         {:tcp, _, message},
-        %{transport: transport, peername: peername, online_peers: online_peers} =
+        %{peername: peername, online_peers: online_peers} =
           state
       ) do
     Logger.info(
@@ -39,8 +51,8 @@ defmodule Chatroom.Handler do
     )
 
     Agent.get(online_peers, fn ps ->
-      Enum.each(ps |> MapSet.to_list(), fn socket ->
-        transport.send(socket, "#{peername}: #{message}")
+      Enum.each(ps |> MapSet.to_list(), fn pid ->
+        push_message(pid, "#{peername}: #{message}")
       end)
     end)
 
@@ -49,10 +61,10 @@ defmodule Chatroom.Handler do
 
   def handle_info(
         {:tcp_closed, _},
-        %{socket: socket, peername: peername, online_peers: online_peers} = state
+        %{peername: peername, online_peers: online_peers} = state
       ) do
     Agent.update(online_peers, fn ps ->
-      MapSet.delete(ps, socket)
+      MapSet.delete(ps, self())
     end)
 
     Logger.info("Peer #{peername} disconnected")
@@ -62,10 +74,10 @@ defmodule Chatroom.Handler do
 
   def handle_info(
         {:tcp_error, _, reason},
-        %{socket: socket, peername: peername, online_peers: online_peers} = state
+        %{peername: peername, online_peers: online_peers} = state
       ) do
     Agent.update(online_peers, fn ps ->
-      MapSet.delete(ps, socket)
+      MapSet.delete(ps, self())
     end)
 
     Logger.info("Error with peer #{peername}: #{inspect(reason)}")
