@@ -7,12 +7,16 @@ defmodule Chatroom.Handler do
   This start_link is required by `:ranch`
   """
   def start_link(ref, socket, transport, %{online_peers: online_peers} = _opts) do
-    pid = :proc_lib.spawn_link(__MODULE__, :init, [ref, socket, transport, online_peers])
+    pid =
+      :proc_lib.spawn_link(__MODULE__, :init, [
+        %{ref: ref, socket: socket, transport: transport, online_peers: online_peers}
+      ])
+
     Agent.update(online_peers, fn ps -> MapSet.put(ps, pid) end)
     {:ok, pid}
   end
 
-  def init(ref, socket, transport, online_peers) do
+  def init(%{ref: ref, socket: socket, transport: transport, online_peers: online_peers}) do
     peername = peername(socket)
 
     Logger.info("Peer #{peername} connecting")
@@ -94,9 +98,5 @@ defmodule Chatroom.Handler do
       |> to_string()
 
     "#{address}:#{port}"
-  end
-
-  def init(_) do
-    {:stop, []}
   end
 end
